@@ -1,0 +1,114 @@
+#Modify related configuration before start
+
+IP=192.168.1.71
+User=USERID
+Pwd=aA12345678
+AuthPro=SHA
+AuthPwd=aA12345678
+PrivPro=AES
+PrivPwd=aA12345678
+
+
+#Where MIB file is
+MIB="/usr/share/snmp/mibs/mibfile/lnvgy_fw_xcc_tei395d-3.40_lenovoxcc-anyos_noarch.mib"
+
+#BMC firmware fersion
+BMCv=ipmitool -I lanp -U USERID -P aA12345678 -H $IP mc info|awk -F':' 'NR==3{print $2}'
+
+#Text Color
+color_blue='\e[1;34m'
+color_normal='\e[0m'
+
+#Refresh the environment
+read -p "Clear BMC log?(y/n:default n)" Cr
+if [ "$Cr" == "y" ]||[ "$Cr" == "Y" ]||[ "$Cr" == "yes" ]
+then 
+	ipmitool -I lanp -U USERID -P aA12345678 -H $IP sel elist > $dt/bmcsel.bak
+	ipmitool -I lanp -U USERID -P aA12345678 -H $IP sel clear
+fi
+
+#Combine parameter
+para="-v 3 -u $User -a $AuthPro -A $AuthPwd -x $PrivPro -X $PrivPwd -m /usr/share/snmp/mibs/mibfile/lnvgy_fw_xcc_tei395d-3.40_lenovoxcc-anyos_noarch.mib -l authPriv $IP"
+
+#Usage
+if [ "$1" == "/h" ] || [ "$1" == "?" ] || [ "$1" == "help" ] || [ "$1" == "/?" ] || [ "$1" == "/help" ] || [ "$1" == "-h" ];
+then
+        echo -e "${color_blue}==------------------------------------------------------=="
+        echo "usage:"
+        echo "./snmpStress"
+	echo "Before script satart you can determine the BMC log will be deleted or not."
+        echo "There are 4 log files."
+        echo "snmpget_datime.log"
+        echo "snmpwalk_datetime.log"
+        echo "snmptable_datetime.log"
+	echo "snmpbulkget_datetime.log"
+        echo "==------------------------------------------------------=="
+        echo "## Please contact IanYH_Lai@compal.com for any question"
+        echo -e "==------------------------------------------------------== ${color_normal}"
+        exit
+fi
+
+#Read all snmpagent function and OID
+snmptranslate -Tz -m /usr/share/snmp/mibs/mibfile/lnvgy_fw_xcc_tei395d-3.40_lenovoxcc-anyos_noarch.mib | awk '{FS=" "} {print $1}'|awk -F'"' '{print $2}' > Item
+snmptranslate -To -m /usr/share/snmp/mibs/mibfile/lnvgy_fw_xcc_tei395d-3.40_lenovoxcc-anyos_noarch.mib > OID
+
+#Make a log folder
+mkdir $(date +%Y%m%d)_$BMCv
+dt= $(date +%Y%m%d)_$BMCv
+
+#Stress : If need unmark the '#'===
+while true 
+do
+#Stress ===========================
+
+while read line
+do 
+	snmpwalk $para $line |tee -a $dt/snmpwalk_$dt.log
+	if [ $? -eq '1' ] ; then
+		echo "walk fail"|tee -a snmperror.log
+		read -n 1 -p "Check the log and press any key if you want to continue..."
+	fi
+done < Item
+
+#Get all entry item's name
+cat snmpwalk_$dt.log |awk '{print$1}'|sed -n ''$i'p' > getentry
+
+#EntryNumber
+EN=`cat snmpwalk_$dt.log |wc -l`
+
+while read line 
+do
+	snmpget $para $line |tee -a snmpget_$dt.log
+	if [ $? -eq '1' ] ; then
+                echo "get fail"|tee -a snmperror.log
+                read -n 1 -p "Check the log and press any key if you want to continue..."
+        fi
+done < getentry
+
+while read line
+do
+	snmpbulkget $para $line |tee -a snmpbulkget_$dt.log
+	if [ $? -eq '1' ] ; then
+                echo "bulkget fail"|tee -a snmperror.log
+                read -n 1 -p "Check the log and press any key if you want to continue..."
+        fi
+done < OID
+
+#TableNumber
+TN=`cat $MIB |grep -i table |grep -i object-type |wc -l`
+
+#Get all tale entry's name
+cat $MIB |grep -i table --color |grep -i object-type --color |awk '{print$1}'|sed -n ''$i'p' > tableentry
+
+while read line
+do
+        snmptable $para $line |tee -a snmpbulkget_$dt.log
+        if [ $? -eq '1' ] ; then
+                echo "table fail"|tee -a snmperror.log
+                read -n 1 -p "Check the log and press any key if you want to continue..."
+        fi
+done < tableentry
+
+#Stress : If need unmark the '#'===
+done
+#Stress ===========================
