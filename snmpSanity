@@ -35,8 +35,8 @@ if [ "$1" == "/h" ] || [ "$1" == "?" ] || [ "$1" == "help" ] || [ "$1" == "/?" ]
 then
         echo -e "${color_blue}==------------------------------------------------------=="
         echo "usage:"
-        echo "./snmpStress"
-	echo "Before script satart you can determine the BMC log will be deleted or not."
+        echo "./snmpStress"	
+	echo "Before script satart you need to modify the related configuration in snmpSanity."
         echo "There are 4 log files."
         echo "snmpget_datime.log"
         echo "snmpwalk_datetime.log"
